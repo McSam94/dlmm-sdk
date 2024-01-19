@@ -13,7 +13,7 @@
     "build": "tsup",
     "start": "npm run build -- --watch",
     "test": "jest src/test/sdk.test.ts",
-    "example": "dotenv -e .env npx ts-node src/example.ts"
+    "script": "dotenv -e .env npx ts-node src/script.ts"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.22.5",

@@ -218,6 +218,7 @@ export interface SwapParams {
    */
   user: PublicKey;
   binArraysPubkey: PublicKey[];
+  priorityFee?: number;
 }
 
 export interface GetOrCreateATAResponse {

@@ -53,7 +53,7 @@ import {
   SwapFee,
   LMRewards,
 } from "./types";
-import { AnchorProvider, BN, Program } from "@coral-xyz/anchor";
+import { AnchorProvider, BN, Program, Wallet } from "@coral-xyz/anchor";
 import {
   binIdToBinArrayIndex,
   chunks,
@@ -80,6 +80,7 @@ import {
   derivePresetParameter,
   computeBudgetIx,
   findNextBinArrayIndexWithLiquidity,
+  computeUnitPriceIx,
 } from "./helpers";
 import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 import Decimal from "decimal.js";
@@ -147,13 +148,14 @@ export class DLMM {
   static async create(
     connection: Connection,
     dlmm: PublicKey,
+    wallet: Wallet,
     opt?: Opt
   ): Promise<DLMM> {
     const cluster = opt?.cluster || "mainnet-beta";
 
     const provider = new AnchorProvider(
       connection,
-      {} as any,
+      wallet,
       AnchorProvider.defaultOptions()
     );
     const program = new Program(IDL, LBCLMM_PROGRAM_IDS[cluster], provider);
@@ -2466,11 +2468,15 @@ export class DLMM {
     lbPair,
     user,
     binArraysPubkey,
+    priorityFee,
   }: SwapParams): Promise<Transaction> {
     const { tokenXMint, tokenYMint, reserveX, reserveY, activeId, oracle } =
       await this.program.account.lbPair.fetch(lbPair);
 
-    const preInstructions: TransactionInstruction[] = [computeBudgetIx()];
+    const preInstructions: TransactionInstruction[] = [
+      computeBudgetIx(),
+      ...(priorityFee ? [computeUnitPriceIx(priorityFee)] : []),
+    ];
 
     const [
       { ataPubKey: userTokenIn, ix: createInTokenAccountIx },
@@ -2518,7 +2524,7 @@ export class DLMM {
       };
     });
 
-    return await this.program.methods
+    return this.program.methods
       .swap(inAmount, minOutAmount)
       .accounts({
         lbPair,

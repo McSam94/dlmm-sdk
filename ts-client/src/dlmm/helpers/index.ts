@@ -186,3 +186,9 @@ export const computeBudgetIx = () => {
     units: 1_400_000,
   });
 };
+
+export const computeUnitPriceIx = (priorityFee: number) => {
+  return ComputeBudgetProgram.setComputeUnitPrice({
+    microLamports: priorityFee,
+  });
+};

@@ -25,7 +25,8 @@ async function init() {
 }
 
 async function execute(amount: number) {
-  const inAmount = new BN(amount * 10 ** jupPool.tokenY.decimal);
+  const JUPDecimal = 9;
+  const inAmount = new BN(amount * 10 ** JUPDecimal);
   if (binArrayPubkey.length === 0) {
     binArrayPubkey = (await jupPool.getBinArrayForSwap(true, 17)).map(
       ({ publicKey }) => publicKey
@@ -55,8 +56,8 @@ async function execute(amount: number) {
     console.log(`⏳ ~ Swapping JUP with ${amount}USDC...`);
     const tx = await jupPool.swap({
       lbPair: jupPool.pubkey,
-      inToken: jupPool.tokenY.publicKey,
-      outToken: jupPool.tokenX.publicKey,
+      inToken: jupPool.lbPair.tokenYMint,
+      outToken: jupPool.lbPair.tokenXMint,
       inAmount,
       minOutAmount: new BN(0),
       binArraysPubkey: binArrayPubkey,

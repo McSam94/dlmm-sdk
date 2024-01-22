@@ -107,34 +107,6 @@ export class DLMM {
   /** Static public method */
 
   /**
-   * The function `getLbPairs` retrieves a list of LB pair accounts using a connection and optional
-   * parameters.
-   * @param {Connection} connection - The `connection` parameter is an instance of the `Connection`
-   * class, which represents the connection to the Solana blockchain network.
-   * @param {Opt} [opt] - The `opt` parameter is an optional object that contains additional options
-   * for the function. It can have the following properties:
-   * @returns The function `getLbPairs` returns a Promise that resolves to an array of
-   * `LbPairAccountsStruct` objects.
-   */
-  public static async getLbPairs(
-    connection: Connection,
-    opt?: Opt
-  ): Promise<LbPairAccountsStruct[]> {
-    const provider = new AnchorProvider(
-      connection,
-      {} as any,
-      AnchorProvider.defaultOptions()
-    );
-    const program = new Program(
-      IDL,
-      LBCLMM_PROGRAM_IDS[opt?.cluster ?? "mainnet-beta"],
-      provider
-    );
-
-    return program.account.lbPair.all();
-  }
-
-  /**
    * The `create` function is a static method that creates a new instance of the `DLMM` class
    * @param {Connection} connection - The `connection` parameter is an instance of the `Connection`
    * class, which represents the connection to the Solana blockchain network.
@@ -232,21 +204,6 @@ export class DLMM {
   }
 
   /**
-   * The function `getBinArrays` returns an array of `BinArrayAccount` objects
-   * @returns a Promise that resolves to an array of BinArrayAccount objects.
-   */
-  public async getBinArrays(): Promise<BinArrayAccount[]> {
-    return this.program.account.binArray.all([
-      {
-        memcmp: {
-          bytes: bs58.encode(this.pubkey.toBuffer()),
-          offset: 8 + 16,
-        },
-      },
-    ]);
-  }
-
-  /**
    * The function `getBinArrayAroundActiveBin` retrieves a specified number of `BinArrayAccount`
    * objects from the blockchain, based on the active bin and its surrounding bin arrays.
    * @param
@@ -318,53 +275,6 @@ export class DLMM {
   }
 
   /**
-   * The function retrieves the active bin ID and its corresponding price.
-   * @returns an object with two properties: "binId" which is a number, and "price" which is a string.
-   */
-  public async getActiveBin(): Promise<{ binId: number; price: string }> {
-    const { activeId } = await this.program.account.lbPair.fetch(this.pubkey);
-    return {
-      binId: activeId,
-      price: this.getPriceOfBinByBinId(activeId),
-    };
-  }
-
-  /**
-   * The function get the price of a bin based on its bin ID.
-   * @param {number} binId - The `binId` parameter is a number that represents the ID of a bin.
-   * @returns {number} the calculated price of a bin based on the provided binId.
-   */
-  public getPriceOfBinByBinId(binId: number): string {
-    const binStepNum = new Decimal(this.lbPair.binStep).div(
-      new Decimal(BASIS_POINT_MAX)
-    );
-    return new Decimal(1)
-      .add(new Decimal(binStepNum))
-      .pow(new Decimal(binId))
-      .toString();
-  }
-
-  /**
-   * The function get bin ID based on a given price and a boolean flag indicating whether to
-   * round down or up.
-   * @param {number} price - The price parameter is a number that represents the price value.
-   * @param {boolean} min - The "min" parameter is a boolean value that determines whether to round
-   * down or round up the calculated binId. If "min" is true, the binId will be rounded down (floor),
-   * otherwise it will be rounded up (ceil).
-   * @returns {number} which is the binId calculated based on the given price and whether the minimum
-   * value should be used.
-   */
-  public getBinIdFromPrice(price: number, min: boolean): number {
-    const binStepNum = new Decimal(this.lbPair.binStep).div(
-      new Decimal(BASIS_POINT_MAX)
-    );
-    const binId = new Decimal(price)
-      .log()
-      .dividedBy(new Decimal(1).add(binStepNum).log());
-    return (min ? binId.floor() : binId.ceil()).toNumber();
-  }
-
-  /**
    * Returns a transaction to be signed and sent by user performing swap.
    * @param {SwapParams}
    *    - `inToken`: The public key of the token to be swapped in.
@@ -377,61 +287,22 @@ export class DLMM {
    * @returns {Promise<Transaction>}
    */
   public async swap({
-    inToken,
-    outToken,
     inAmount,
     minOutAmount,
     lbPair,
     user,
     binArraysPubkey,
     priorityFee,
+    userTokenIn,
+    userTokenOut,
   }: SwapParams): Promise<Transaction> {
-    const { tokenXMint, tokenYMint, reserveX, reserveY, activeId, oracle } =
-      await this.program.account.lbPair.fetch(lbPair);
+    const { tokenXMint, tokenYMint, reserveX, reserveY, oracle } = this.lbPair;
 
     const preInstructions: TransactionInstruction[] = [
       computeBudgetIx(),
       ...(priorityFee ? [computeUnitPriceIx(priorityFee)] : []),
     ];
 
-    const [
-      { ataPubKey: userTokenIn, ix: createInTokenAccountIx },
-      { ataPubKey: userTokenOut, ix: createOutTokenAccountIx },
-    ] = await Promise.all([
-      getOrCreateATAInstruction(
-        this.program.provider.connection,
-        inToken,
-        user
-      ),
-      getOrCreateATAInstruction(
-        this.program.provider.connection,
-        outToken,
-        user
-      ),
-    ]);
-    createInTokenAccountIx && preInstructions.push(createInTokenAccountIx);
-    createOutTokenAccountIx && preInstructions.push(createOutTokenAccountIx);
-
-    if (inToken.equals(NATIVE_MINT)) {
-      const wrapSOLIx = wrapSOLInstruction(
-        user,
-        userTokenIn,
-        BigInt(inAmount.toString())
-      );
-
-      preInstructions.push(...wrapSOLIx);
-    }
-
-    const postInstructions: Array<TransactionInstruction> = [];
-    if (outToken.equals(NATIVE_MINT)) {
-      const closeWrappedSOLIx = await unwrapSOLInstruction(user);
-      closeWrappedSOLIx && postInstructions.push(closeWrappedSOLIx);
-    }
-
-    let swapForY = true;
-    if (outToken.equals(tokenXMint)) swapForY = false;
-
-    // TODO: needs some refinement in case binArray not yet initialized
     const binArrays: AccountMeta[] = binArraysPubkey.map((pubkey) => {
       return {
         isSigner: false,
@@ -448,8 +319,8 @@ export class DLMM {
         reserveY,
         tokenXMint,
         tokenYMint,
-        tokenXProgram: TOKEN_PROGRAM_ID, // dont use 2022 first; lack familiarity
-        tokenYProgram: TOKEN_PROGRAM_ID, // dont use 2022 first; lack familiarity
+        tokenXProgram: TOKEN_PROGRAM_ID,
+        tokenYProgram: TOKEN_PROGRAM_ID,
         user,
         userTokenIn,
         userTokenOut,
@@ -461,7 +332,6 @@ export class DLMM {
       })
       .remainingAccounts(binArrays)
       .preInstructions(preInstructions)
-      .postInstructions(postInstructions)
       .transaction();
   }
 }

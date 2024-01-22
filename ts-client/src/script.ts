@@ -38,6 +38,36 @@ async function execute(amount: number) {
     );
   }
 
+  // const priorityFeeData = await fetch(process.env.PRIORITY_FEE_KV).then((res) =>
+  //   res.json()
+  // );
+  // const priorityFee: number = Math.min(
+  //   1,
+  //   Math.min(priorityFeeData.swapFee, 357107142)
+  // );
+  try {
+    console.log(`⏳ ~ Swapping JUP with ${amount}USDC...`);
+    const tx = await jupPool.swap({
+      lbPair: jupPool.pubkey,
+      inAmount,
+      minOutAmount: new BN(0),
+      binArraysPubkey: binArrayPubkey,
+      user: wallet.publicKey,
+      // priorityFee,
+      userTokenIn: usdcAtaAccount,
+      userTokenOut: jupAtaAccount,
+    });
+    const txHash = await connection.sendTransaction(tx, [walletKeypair], {
+      skipPreflight: true,
+    });
+    console.log(`🗞️ ~ Result ~ tx: ${txHash}`);
+  } catch (error) {
+    console.warn("❌ ~ Error:", error);
+    console.warn("❌ ~ Error:", JSON.parse(JSON.stringify(error)));
+  }
+}
+
+async function prepareATA() {
   if (!jupAtaAccount) {
     jupAtaAccount = getAssociatedTokenAddressSync(
       jupPool.lbPair.tokenXMint,
@@ -71,38 +101,11 @@ async function execute(amount: number) {
       );
     }
   }
-
-  // const priorityFeeData = await fetch(process.env.PRIORITY_FEE_KV).then((res) =>
-  //   res.json()
-  // );
-  // const priorityFee: number = Math.min(
-  //   1,
-  //   Math.min(priorityFeeData.swapFee, 357107142)
-  // );
-  try {
-    console.log(`⏳ ~ Swapping JUP with ${amount}USDC...`);
-    const tx = await jupPool.swap({
-      lbPair: jupPool.pubkey,
-      inAmount,
-      minOutAmount: new BN(0),
-      binArraysPubkey: binArrayPubkey,
-      user: wallet.publicKey,
-      // priorityFee,
-      userTokenIn: usdcAtaAccount,
-      userTokenOut: jupAtaAccount,
-    });
-    const txHash = await connection.sendTransaction(tx, [walletKeypair], {
-      skipPreflight: true,
-    });
-    console.log(`🗞️ ~ Result ~ tx: ${txHash}`);
-  } catch (error) {
-    console.warn("❌ ~ Error:", error);
-    console.warn("❌ ~ Error:", JSON.parse(JSON.stringify(error)));
-  }
 }
 
 async function loopCondition() {
   const currentSlot = await connection.getSlot();
+  prepareATA();
 
   if (currentSlot > jupPool.lbPair.activationSlot.toNumber() + 30 / 0.45) {
     setInterval(() => {

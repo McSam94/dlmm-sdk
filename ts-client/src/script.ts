@@ -101,14 +101,24 @@ async function execute(amount: number) {
   }
 }
 
+async function loopCondition() {
+  const currentSlot = await connection.getSlot();
+
+  if (currentSlot > jupPool.lbPair.activationSlot.toNumber() + 30 / 0.45) {
+    setInterval(() => {
+      execute(1);
+    }, 300);
+  } else {
+    loopCondition();
+  }
+}
+
 async function main() {
   if (!jupPool) {
     await init();
   }
 
-  setInterval(() => {
-    execute(1);
-  }, 300);
+  loopCondition();
 }
 
 main();

@@ -1,6 +1,6 @@
 {
   "name": "@jaydenpung/dlmm",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -9,6 +9,11 @@
   "files": [
     "dist/**"
   ],
+  "compilerOptions": {
+    "declaration": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
   "scripts": {
     "build": "tsup",
     "start": "npm run build -- --watch",

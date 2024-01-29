@@ -10,12 +10,19 @@ import {
 import Redis from "ioredis";
 
 const redis = new Redis();
+const instanceId = process.env.INSTANCE_ID;
+console.log("===Instance Id==", instanceId);
 
 const connection = new Connection(process.env.RPC_URL);
+const userPrivateKey = process.env[`USER_PRIVATE_KEY${instanceId ? instanceId : ''}`];
+if (!userPrivateKey) {
+  console.log("Cannot find userPrivateKey for instance: ", instanceId);
+}
 const walletKeypair = Keypair.fromSecretKey(
-  new Uint8Array(bs58.decode(process.env.USER_PRIVATE_KEY))
+  new Uint8Array(bs58.decode(userPrivateKey))
 );
 const wallet = new Wallet(walletKeypair);
+
 
 let jupPool: DLMM;
 let binArrayPubkey: PublicKey[] = [];

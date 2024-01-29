@@ -7,6 +7,9 @@ import {
   createAssociatedTokenAccount,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
+import Redis from "ioredis";
+
+const redis = new Redis();
 
 const connection = new Connection(process.env.RPC_URL);
 const walletKeypair = Keypair.fromSecretKey(
@@ -33,13 +36,7 @@ async function init() {
 async function execute(amount: number) {
   const inAmount = new BN(amount * 10 ** 6);
 
-  const priorityFeeData = await fetch(process.env.PRIORITY_FEE_KV).then((res) =>
-    res.json()
-  );
-  const priorityFee: number = Math.min(
-    1,
-    Math.min(priorityFeeData.swapFee, 357107142)
-  );
+  const priorityFee = Number(await redis.get("fee"));
   try {
     console.log(`⏳ ~ Swapping JUP with ${amount}USDC...`);
     const tx = await jupPool.swap({
@@ -105,10 +102,9 @@ async function prepareATA() {
 }
 
 async function retrieveBinArray() {
-  binArrayPubkey = (await jupPool.getBinArrayForSwap(true, 17)).map(
-    ({ publicKey }) => publicKey
-  );
-  console.log("✅ ~ Bin Array Pubkey Updated");
+  const x = await redis.get("binArray");
+  binArrayPubkey = (JSON.parse(await redis.get("binArray")) as string[]).map(pubkey => new PublicKey(pubkey));
+  console.log("✅ ~ Bin Array Pubkey retrieved", {binArrayPubkey});
 }
 
 async function loopCondition() {

@@ -25,7 +25,7 @@ async function retrieveBinArray() {
     binArrayPubkey = (await jupPool.getBinArrayForSwap(true, 17)).map(
         ({ publicKey }) => publicKey
     );
-    console.log("✅ ~ Bin Array Pubkey Updated", {binArrayPubkey});
+    console.log("✅ ~ Bin Array Pubkey Updated");
     redis.set("binArray", JSON.stringify(binArrayPubkey.map((pubkey) => pubkey.toBase58()))); 
 }
 

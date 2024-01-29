@@ -11,10 +11,11 @@ import Redis from "ioredis";
 
 const redis = new Redis();
 const instanceId = process.env.INSTANCE_ID;
-console.log("===Instance Id==", instanceId);
+console.log("===Instance Id===", instanceId);
 
 const connection = new Connection(process.env.RPC_URL);
-const userPrivateKey = process.env[`USER_PRIVATE_KEY${instanceId ? instanceId : ''}`];
+const userPrivateKey =
+  process.env[`USER_PRIVATE_KEY${instanceId ? instanceId : ""}`];
 if (!userPrivateKey) {
   console.log("Cannot find userPrivateKey for instance: ", instanceId);
 }
@@ -22,7 +23,6 @@ const walletKeypair = Keypair.fromSecretKey(
   new Uint8Array(bs58.decode(userPrivateKey))
 );
 const wallet = new Wallet(walletKeypair);
-
 
 let jupPool: DLMM;
 let binArrayPubkey: PublicKey[] = [];
@@ -110,8 +110,10 @@ async function prepareATA() {
 
 async function retrieveBinArray() {
   const x = await redis.get("binArray");
-  binArrayPubkey = (JSON.parse(await redis.get("binArray")) as string[]).map(pubkey => new PublicKey(pubkey));
-  console.log("✅ ~ Bin Array Pubkey retrieved", {binArrayPubkey});
+  binArrayPubkey = (JSON.parse(await redis.get("binArray")) as string[]).map(
+    (pubkey) => new PublicKey(pubkey)
+  );
+  console.log("✅ ~ Bin Array Pubkey retrieved", { binArrayPubkey });
 }
 
 async function loopCondition() {

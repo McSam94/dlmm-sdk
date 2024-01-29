@@ -32,19 +32,14 @@ async function init() {
 
 async function execute(amount: number) {
   const inAmount = new BN(amount * 10 ** 6);
-  if (binArrayPubkey.length === 0) {
-    binArrayPubkey = (await jupPool.getBinArrayForSwap(true, 17)).map(
-      ({ publicKey }) => publicKey
-    );
-  }
 
-  // const priorityFeeData = await fetch(process.env.PRIORITY_FEE_KV).then((res) =>
-  //   res.json()
-  // );
-  // const priorityFee: number = Math.min(
-  //   1,
-  //   Math.min(priorityFeeData.swapFee, 357107142)
-  // );
+  const priorityFeeData = await fetch(process.env.PRIORITY_FEE_KV).then((res) =>
+    res.json()
+  );
+  const priorityFee: number = Math.min(
+    1,
+    Math.min(priorityFeeData.swapFee, 357107142)
+  );
   try {
     console.log(`⏳ ~ Swapping JUP with ${amount}USDC...`);
     const tx = await jupPool.swap({
@@ -53,7 +48,7 @@ async function execute(amount: number) {
       minOutAmount: new BN(0),
       binArraysPubkey: binArrayPubkey,
       user: wallet.publicKey,
-      // priorityFee,
+      priorityFee,
       userTokenIn: usdcAtaAccount,
       userTokenOut: jupAtaAccount,
     });
@@ -81,7 +76,10 @@ async function prepareATA() {
         jupPool.lbPair.tokenXMint,
         wallet.publicKey
       );
+      console.log("🚀 ~ JUP ATA Account created:", jupAtaAccount.toString());
     }
+  } else {
+    console.log("✅ ~ JUP ATA Account:", jupAtaAccount.toString());
   }
 
   if (!usdcAtaAccount) {
@@ -99,15 +97,32 @@ async function prepareATA() {
         jupPool.lbPair.tokenYMint,
         wallet.publicKey
       );
+      console.log("🚀 ~ USDC ATA Account created:", usdcAtaAccount.toString());
     }
+  } else {
+    console.log("✅ ~ USDC ATA Account:", usdcAtaAccount.toString());
   }
 }
 
+async function retrieveBinArray() {
+  binArrayPubkey = (await jupPool.getBinArrayForSwap(true, 17)).map(
+    ({ publicKey }) => publicKey
+  );
+  console.log("✅ ~ Bin Array Pubkey Updated");
+}
+
 async function loopCondition() {
+  await jupPool.refetchStates();
   const currentSlot = await connection.getSlot();
+  console.log("🚀 ~ CurrentSlot:", currentSlot);
   prepareATA();
 
-  if (currentSlot > jupPool.lbPair.activationSlot.toNumber() + 30 / 0.45) {
+  const poolActivationSlot = Number(jupPool.lbPair.activationSlot.toString());
+  console.log("🚀 ~ JUP Pool Activation Slot:", poolActivationSlot);
+  if (currentSlot > poolActivationSlot - 30 / 0.45) {
+    setInterval(() => {
+      retrieveBinArray();
+    }, 500);
     setInterval(() => {
       execute(1);
     }, 300);

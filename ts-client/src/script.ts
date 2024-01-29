@@ -3,6 +3,10 @@ import { DLMM } from "./dlmm";
 import { bs58 } from "@coral-xyz/anchor/dist/cjs/utils/bytes";
 import { Wallet } from "@coral-xyz/anchor";
 import { BN } from "bn.js";
+import {
+  createAssociatedTokenAccount,
+  getAssociatedTokenAddressSync,
+} from "@solana/spl-token";
 
 const connection = new Connection(process.env.RPC_URL);
 const walletKeypair = Keypair.fromSecretKey(
@@ -12,6 +16,8 @@ const wallet = new Wallet(walletKeypair);
 
 let jupPool: DLMM;
 let binArrayPubkey: PublicKey[] = [];
+let jupAtaAccount;
+let usdcAtaAccount;
 
 async function init() {
   jupPool = await DLMM.create(
@@ -25,25 +31,7 @@ async function init() {
 }
 
 async function execute(amount: number) {
-  const JUPDecimal = 9;
-  const inAmount = new BN(amount * 10 ** JUPDecimal);
-  if (binArrayPubkey.length === 0) {
-    binArrayPubkey = (await jupPool.getBinArrayForSwap(true, 17)).map(
-      ({ publicKey }) => publicKey
-    );
-  }
-  //   const inSlippage = new BN(100 * 100);
-  //   const binArraysForSwap = await jupPool.getBinArrayForSwap(false, 10);
-  //   const quotation = jupPool.swapQuote(
-  //     inAmount,
-  //     false,
-  //     inSlippage,
-  //     binArraysForSwap
-  //   );
-  //   console.log(
-  //     "🚀 ~ quotation ~ minOutAmount",
-  //     quotation.minOutAmount.toString()
-  //   );
+  const inAmount = new BN(amount * 10 ** 6);
 
   const priorityFeeData = await fetch(process.env.PRIORITY_FEE_KV).then((res) =>
     res.json()
@@ -56,13 +44,13 @@ async function execute(amount: number) {
     console.log(`⏳ ~ Swapping JUP with ${amount}USDC...`);
     const tx = await jupPool.swap({
       lbPair: jupPool.pubkey,
-      inToken: jupPool.lbPair.tokenYMint,
-      outToken: jupPool.lbPair.tokenXMint,
       inAmount,
       minOutAmount: new BN(0),
       binArraysPubkey: binArrayPubkey,
       user: wallet.publicKey,
       priorityFee,
+      userTokenIn: usdcAtaAccount,
+      userTokenOut: jupAtaAccount,
     });
     const txHash = await connection.sendTransaction(tx, [walletKeypair], {
       skipPreflight: true,
@@ -74,14 +62,81 @@ async function execute(amount: number) {
   }
 }
 
+async function prepareATA() {
+  if (!jupAtaAccount) {
+    jupAtaAccount = getAssociatedTokenAddressSync(
+      jupPool.lbPair.tokenXMint,
+      wallet.publicKey
+    );
+    const jupAtaAccountBuffer = await connection.getAccountInfo(jupAtaAccount);
+    if (!jupAtaAccountBuffer) {
+      jupAtaAccount = await createAssociatedTokenAccount(
+        connection,
+        wallet.payer,
+        jupPool.lbPair.tokenXMint,
+        wallet.publicKey
+      );
+      console.log("🚀 ~ JUP ATA Account created:", jupAtaAccount.toString());
+    }
+  } else {
+    console.log("✅ ~ JUP ATA Account:", jupAtaAccount.toString());
+  }
+
+  if (!usdcAtaAccount) {
+    usdcAtaAccount = getAssociatedTokenAddressSync(
+      jupPool.lbPair.tokenYMint,
+      wallet.publicKey
+    );
+    const usdcAtaAccountBuffer = await connection.getAccountInfo(
+      usdcAtaAccount
+    );
+    if (!usdcAtaAccountBuffer) {
+      usdcAtaAccount = await createAssociatedTokenAccount(
+        connection,
+        wallet.payer,
+        jupPool.lbPair.tokenYMint,
+        wallet.publicKey
+      );
+      console.log("🚀 ~ USDC ATA Account created:", usdcAtaAccount.toString());
+    }
+  } else {
+    console.log("✅ ~ USDC ATA Account:", usdcAtaAccount.toString());
+  }
+}
+
+async function retrieveBinArray() {
+  binArrayPubkey = (await jupPool.getBinArrayForSwap(true, 17)).map(
+    ({ publicKey }) => publicKey
+  );
+  console.log("✅ ~ Bin Array Pubkey Updated");
+}
+
+async function loopCondition() {
+  await jupPool.refetchStates();
+  const currentSlot = await connection.getSlot();
+  console.log("🚀 ~ CurrentSlot:", currentSlot);
+  prepareATA();
+
+  const poolActivationSlot = Number(jupPool.lbPair.activationSlot.toString());
+  console.log("🚀 ~ JUP Pool Activation Slot:", poolActivationSlot);
+  if (currentSlot > poolActivationSlot - 30 / 0.45) {
+    setInterval(() => {
+      retrieveBinArray();
+    }, 500);
+    setInterval(() => {
+      execute(1);
+    }, 300);
+  } else {
+    loopCondition();
+  }
+}
+
 async function main() {
   if (!jupPool) {
     await init();
   }
 
-  setInterval(() => {
-    execute(1);
-  }, 300);
+  loopCondition();
 }
 
 main();

@@ -194,14 +194,6 @@ export interface PositionData {
 
 export interface SwapParams {
   /**
-   * mint of in token
-   */
-  inToken: PublicKey;
-  /**
-   * mint of out token
-   */
-  outToken: PublicKey;
-  /**
    * in token amount
    */
   inAmount: BN;
@@ -219,6 +211,8 @@ export interface SwapParams {
   user: PublicKey;
   binArraysPubkey: PublicKey[];
   priorityFee?: number;
+  userTokenIn: PublicKey;
+  userTokenOut: PublicKey;
 }
 
 export interface GetOrCreateATAResponse {

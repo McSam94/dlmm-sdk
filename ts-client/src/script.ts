@@ -113,7 +113,7 @@ async function retrieveBinArray() {
   binArrayPubkey = (JSON.parse(await redis.get("binArray")) as string[]).map(
     (pubkey) => new PublicKey(pubkey)
   );
-  console.log("✅ ~ Bin Array Pubkey retrieved", { binArrayPubkey });
+  console.log("✅ ~ Bin Array Pubkey retrieved");
 }
 
 async function loopCondition() {

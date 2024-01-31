@@ -126,10 +126,7 @@ async function loopCondition() {
   console.log("🚀 ~ JUP Pool Activation Slot:", poolActivationSlot);
   if (currentSlot > poolActivationSlot - 30 / 0.45) {
     setInterval(() => {
-      retrieveBinArray();
-    }, 500);
-    setInterval(() => {
-      execute(1);
+      execute(100);
     }, 300);
   } else {
     loopCondition();
